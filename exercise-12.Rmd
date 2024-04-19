@@ -1,0 +1,217 @@
+---
+title: "exercise-12"
+---
+Keerthana Stanley
+
+
+
+Preliminaries: 
+
+loading in the data
+```{r, message=FALSE}
+library(tidyverse)
+
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/Mammal_lifehistories_v2.txt"
+
+d <- read_tsv(f, col_names=TRUE)
+```
+
+
+exploratory data analysis using {skimr}
+```{r}
+library(skimr)
+
+d_sumstats <- skim(d)
+```
+
+
+QUESTION:
+Which of the variables are categorical and which are numeric?
+
+ANSWER:
+  - categorical: order, Family, Genus, species
+  - numerical: mass, gestation, newborn, weaning, wean mass, AFR, max.life, litter size, litters/year, refs
+  
+  
+
+
+
+
+
+
+
+
+
+STEP 1:
+Replace all values of -999 (the authors’ code for missing data) with NA.
+
+documentation for using the {naniar} for this : https://www.rdocumentation.org/packages/naniar/versions/1.1.0/topics/replace_with_na_all
+
+
+```{r, message=FALSE}
+library(naniar)
+
+# replace_with_na_all(dataset, condition)
+d <- replace_with_na_all(d, condition = ~.x == -999)
+```
+
+
+
+
+
+
+STEP 2
+Drop the variables litter size and refs.
+```{r}
+d <- d %>% 
+  # using select() to pull out specific columns
+  # but in this case I'm using the '-' to exclude litter size and refs
+  select(-c(`litter size`, `refs`))
+```
+
+
+
+
+
+
+
+STEP 3:
+Log transform all of the other numeric variables.
+
+
+mutate(across(where(), .funs)) allows me to apply one function to multiple columns:
+https://dplyr.tidyverse.org/reference/across.html
+
+my code is based more off of code here: https://www.tidyverse.org/blog/2020/04/dplyr-1-0-0-colwise/
+
+
+
+so I wanted to mutate WHERE the variable is numeric and add a log function
+```{r}
+# using pipe operator for this
+d_log <- d %>%
+  # where-- is.numeric; function-- log
+  mutate(across(where(is.numeric), log))
+```
+
+now gestation(mo), weaning(mo), AFR(mo), max. life(mo), newborn(g), wean mass, and (overall body) mass are all actually the log versions of their original value
+
+
+
+
+
+
+STEP 4
+
+Regress the (now log transformed) age [gestation(mo), weaning(mo), AFR(mo) (age at first reproduction), and max. life(mo) (maximum lifespan)] and mass [newborn(g) and wean mass(g)] variables on (now log transformed) overall body mass(g) 
+
+Add the residuals to the dataframe as new variables (relGest, relWean, relAFR, relLife, relNewbornMass, and relWeaningMass).
+
+
+**** Use “na.action=na.exclude” in your lm() calls!!! 
+With this argument set, the residuals will be padded to the correct length by inserting NAs for cases with missing data.
+
+
+once again using mutate() for these changes/additions in the dataset
+
+
+each variable listed above is regressed to  mass(g)
+first just printing out the summary for each regression model:
+```{r}
+m_gestation <- lm(`gestation(mo)` ~ `mass(g)`, data = d_log, na.action = na.exclude)
+summary(m_gestation)
+
+m_weaning <- lm(`weaning(mo)` ~ `mass(g)`, data = d_log, na.action = na.exclude)
+summary(m_weaning)
+
+m_AFR <- lm(`AFR(mo)` ~ `mass(g)`, data = d_log, na.action = na.exclude)
+summary(m_AFR)
+
+m_max_life <- lm(`max. life(mo)` ~ `mass(g)`, data = d_log, na.action = na.exclude)
+summary(m_max_life)
+
+m_newborn <- lm(`newborn(g)` ~ `mass(g)`, data = d_log, na.action = na.exclude)
+summary(m_newborn)
+
+m_wean_mass <- lm(`wean mass(g)` ~ `mass(g)`, data = d_log, na.action = na.exclude)
+summary(m_wean_mass)
+```
+
+
+
+```{r}
+d_new <- d_log %>%
+  mutate(
+    # gestation 
+    relGest = resid(lm(`gestation(mo)` ~ `mass(g)`, data = ., na.action = na.exclude)),
+    # weaning 
+    relWean = resid(lm(`weaning(mo)` ~ `mass(g)`, data = ., na.action = na.exclude)),
+    # AFR
+    relAFR = resid(lm(`AFR(mo)` ~ `mass(g)`, data = ., na.action = na.exclude)),
+    # max life 
+    relLife = resid(lm(`max. life(mo)` ~ `mass(g)`, data = ., na.action = na.exclude)),
+    # newborn
+    relNewbornMass = resid(lm(`newborn(g)` ~ `mass(g)`, data = ., na.action = na.exclude)),
+    # wean mass
+    relWeaningMass = resid(lm(`wean mass(g)` ~ `mass(g)`, data = ., na.action = na.exclude))
+  )
+
+```
+
+
+
+
+
+
+
+
+
+STEP 5:
+- Plot residuals of max lifespan (relLife) in relation to Order. 
+
+Q: Which mammalian orders have the highest residual lifespan?
+A: primates
+
+
+- Plot residuals of newborn mass (relNewbornMass) in relation to Order. 
+
+Q: Which mammalian orders have the have highest residual newborn mass?
+A: macroscelidia
+
+- Plot residuals of weaning mass (relWeaningMass) in relation to Order. 
+
+Q: Which mammalian orders have the have highest relative weaning mass?
+A: perissodactyla 
+
+
+
+using ggplot2 for the plotting
+```{r}
+library(ggplot2)
+
+(p1_relLife <- ggplot(d_new, aes(x = order, y = relLife)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Residuals of Max Lifespan by Order", 
+       x = "Order", 
+       y = "Residual Max Lifespan"))
+
+(p2_relNewbornMass <- ggplot(d_new, aes(x = order, y = relNewbornMass)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Residuals of Newborn Mass by Order", 
+       x = "Order", 
+       y = "Residual Newborn Mass"))
+
+(p3_relWeaningMass <- ggplot(d_new, aes(x = order, y = relWeaningMass)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Residuals of Weaning Mass by Order", 
+       x = "Order", 
+       y = "Residual Weaning Mass"))
+
+```
+
+
+
+
