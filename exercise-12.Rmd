@@ -215,3 +215,94 @@ library(ggplot2)
 
 
 
+
+
+
+
+
+
+
+
+STEP 6:
+
+Run models and a model selection process to evaluate what (now log transformed) variables best predict each of the two response variables, max. life(mo) and AFR(mo), from the set of the following predictors: gestation(mo), newborn(g), weaning(mo), wean mass(g), litters/year, and overall body mass(g).
+
+Calculate and plot the model-averaged coefficients and their CIs across this set of top models.
+
+
+***HINT: Before running models, winnow your dataset to drop rows that are missing the respective response variable or any of the predictors, e.g., by using drop_na()!!!
+
+
+
+QUESTIONS:
+  - For each of the two response variables, indicate what is the best model overall based on AICc and how many models have a delta AICc of 4 or less?
+        *** look for lowest AICc and delta scores
+        
+  - What variables, if any, appear in all of this set of “top” models?
+        *** can see these scored based on significance, and in how the top models numbered/named with respect to the              variables/components that contribute
+
+
+ANSWERS:
+  - for Max Life: there are 2 models with  delta < 4 (and the best model is 1235); 
+    for AFR:there are 7 models with delta < 4 (and the best model is 1236)
+    
+  - for Max Life: gestation, litters/year, and weaning appear in all of the top models; 
+    for AFR: gestation and litters/year appear in all of the top models
+
+
+code based on Module 22 use of the {MuMIn} package
+
+model selection for Max Life
+```{r}
+library(MuMIn)
+
+# winnow dataset to drop any missing rows from
+d_new <- d_new %>%
+  drop_na(`max. life(mo)`, `AFR(mo)`, `gestation(mo)`, `newborn(g)`, `weaning(mo)`, `wean mass(g)`, `litters/year`, `mass(g)`)
+
+
+# define global model for max. life
+# default na.omit should be changed to na. fail to prevent dredge() from trying to fit submodels
+m_max_life <- lm(`max. life(mo)` ~ `gestation(mo)` + `newborn(g)` + `weaning(mo)` + `wean mass(g)` + `litters/year` + `mass(g)`, data = d_new, na.action = "na.fail")
+
+# model selection for max. life
+# using dredge() from Module 22
+mods_max_life <- dredge(m_max_life, beta = "none", m.lim = c(0, 4))
+
+(mods.list <- get.models(mods_max_life, subset = TRUE))
+```
+
+
+model selection for Max Life
+```{r}
+# define global model for max. life
+# default na.omit should be changed to na. fail to prevent dredge() from trying to fit submodels
+m_AFR <- lm(`AFR(mo)` ~ `gestation(mo)` + `newborn(g)` + `weaning(mo)` + `wean mass(g)` + `litters/year` + `mass(g)`, data = d_new, na.action = "na.fail")
+
+# model selection for max. life
+# using dredge() from Module 22
+mods_AFR <- dredge(m_AFR, beta = "none", m.lim = c(0, 4))
+
+(mods.list <- get.models(mods_AFR, subset = TRUE))
+```
+
+
+
+models with Delta AICc < 4
+
+max life
+```{r}
+(mods.avg <- summary(model.avg(mods_max_life, subset = delta < 4, fit = TRUE)))
+```
+
+AFR
+```{r}
+(mods.avg <- summary(model.avg(mods_AFR, subset = delta < 4, fit = TRUE)))
+````
+
+
+
+Calculate and plot the model-averaged coefficients and their CIs across this set of top models.
+
+
+NOT COMPLETE
